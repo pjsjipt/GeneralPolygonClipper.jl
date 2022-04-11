@@ -1,10 +1,8 @@
 module GeneralPolygonClipper
+import GeometryBasics: Point2
 
+const Vertex = Point2{Float64}
 
-struct Vertex
-    x::Float64
-    y::Float64
-end
 
 struct gpc_vertex_list
     num_vertices::Cint
@@ -29,6 +27,14 @@ struct gpc_tristrip
     strip::Ptr{gpc_vertex_list}
 end
 
+function GPCPolygon(x::AbstractVector, y::AbstractVector)
+    nv = length(x)
+    @assert nv == length(y)
+
+    v = [Vertex(x[i], y[i]) for i in 1:nv]
+
+    return GPCPolygon([false], [v])
+end
 
 
 #const plibgpc = Libc.Libdl.dlopen("/usr/local/lib/libgpc.so")

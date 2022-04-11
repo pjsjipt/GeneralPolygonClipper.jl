@@ -3,6 +3,9 @@ uuid = "1ef9aace-6893-4b14-abcd-6e0cb8bf6495"
 authors = ["Paulo Jabardo <pjabardo@ipt.br>"]
 version = "0.1.0"
 
+[deps]
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+
 [compat]
 julia = "1.7"
 
