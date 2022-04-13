@@ -10,7 +10,8 @@ export GPCPolygon, gpc_polygon_clip, gpc_tristrip_clip
 export union_strip, intersect_strip, diff_strip, xor_strip
 export gpcpoly2tristrip, tristrip2triangles, tristrip2polygons
 export gpcpoly2triangles, gpcpoly2polygons
-export gpcpoly2poly
+export gpc2poly
+export GPCOperation, GPC_DIFF, GPC_INT, GPC_XOR, GPC_UNION
 
 const Vertex = Point2{Float64}
 
@@ -317,14 +318,14 @@ end
 
 
 """
-`gpcpoly2poly(p::GPCPolygon)` 
+`gpc2poly(p::GPCPolygon)` 
 
 Converts a [`GPCPolygon`](@ref) object to a 
 [`GeometryBasics::Polygon`](@ref).
 
 The input polygon should have one and only one external contour!
 """
-function gpcpoly2poly(p::GPCPolygon)
+function gpc2poly(p::GPCPolygon)
     # This will only work *if* we have a single external contour
     if sum(!, p.holes) != 1
         error("GPCPolygon should have only one external contour!")
