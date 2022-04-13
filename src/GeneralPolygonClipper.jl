@@ -1,15 +1,16 @@
 module GeneralPolygonClipper
-import GeometryBasics: Point, Point2, Triangle, Polygon
+import GeometryBasics: Point, Point2, Triangle, Polygon, AbstractPolygon
 
 
 @enum GPCOperation GPC_DIFF=0 GPC_INT GPC_XOR GPC_UNION
 
 
-export Point2, Polygon, Triangle
+export Point2, Polygon, Triangle, area
 export GPCPolygon, gpc_polygon_clip, gpc_tristrip_clip
 export union_strip, intersect_strip, diff_strip, xor_strip
 export gpcpoly2tristrip, tristrip2triangles, tristrip2polygons
 export gpcpoly2triangles, gpcpoly2polygons
+export gpcpoly2poly
 
 const Vertex = Point2{Float64}
 
@@ -50,7 +51,7 @@ end
 A GPC Polygon where each polygon is composed of 1 or more contours.
 Each contour is a vector of vertices and can be a hole or not.
 """
-struct GPCPolygon
+struct GPCPolygon <: AbstractPolygon{2,Float64}
     "Is the i-th contour a hole?"
     holes::Vector{Bool}
     "Vector of vertices of the i-th contour"
@@ -64,6 +65,38 @@ function GPCPolygon(x::AbstractVector, y::AbstractVector)
     v = [Vertex(x[i], y[i]) for i in 1:nv]
 
     return GPCPolygon([false], [v])
+end
+
+
+import GeometryBasics.area
+
+"""
+`area(p::GPCPolygon)`
+
+Calculates the surface area of a [`GPCPolygon`](@ref) polygon.
+
+The area is defined as the sum of the areas of external contours minus
+the area of the holes. 
+
+There is an issue here as to the signal of the area. 
+Depending on how the vertices on a contour are oriented, 
+the area can be negative. To keep things consistent, the area 
+of external contours are positive and the area of holes is negative.
+
+"""
+function area(p::GPCPolygon)
+
+    A = 0.0
+
+    for (i, c) in enumerate(p.contours)
+        if p.holes[i]
+            A -= abs(area(c))
+        else
+            A += abs(area(c))
+        end
+    end
+    return A
+    
 end
 
 """
@@ -282,6 +315,32 @@ function gpcpoly2polygons(p::GPCPolygon)
     end
 end
 
+
+"""
+`gpcpoly2poly(p::GPCPolygon)` 
+
+Converts a [`GPCPolygon`](@ref) object to a 
+[`GeometryBasics::Polygon`](@ref).
+
+The input polygon should have one and only one external contour!
+"""
+function gpcpoly2poly(p::GPCPolygon)
+    # This will only work *if* we have a single external contour
+    if sum(!, p.holes) != 1
+        error("GPCPolygon should have only one external contour!")
+    end
+    
+    nc = length(p.contours)
+    cext = [p.contours[i] for i in 1:nc if !p.holes[i]]
+    cint = [p.contours[i] for i in 1:nc if p.holes[i]]
+
+    if length(cint) == 0
+        return Polygon(cext[1])
+    else
+        return Polygon(cext[1], cint)
+    end
+    
+end
 
 
 
