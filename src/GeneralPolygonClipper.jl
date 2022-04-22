@@ -8,7 +8,7 @@ export Vertex, area, centroid
 export gpc_polygon_clip, gpc_polygon_to_tristrip, gpc_tristrip_clip
 export GPCPolygon, GPCTriStrip
 export union_strip, intersect_strip, diff_strip, xor_strip
-export gpcpoly2tristrip, pintri
+export gpc2tristrip, pintri
 export GPCOperation, GPC_DIFF, GPC_INT, GPC_XOR, GPC_UNION
 
 
@@ -139,7 +139,7 @@ function centroid(p::GPCPolygon)
     Cx = 0.0
     Cy = 0.0
     A = 0.0
-    strip = gpcpoly2tristrip(p)
+    strip = gpc2tristrip(p)
     for s in strip
         for i in 1:length(s)
             v = s[i]
@@ -277,7 +277,7 @@ xor(p1::GPCPolygon, p2::GPCPolygon) =  gpc_polygon_clip(GPC_XOR, p1, p2)
 """
 `gpc_polygon_to_tristrip(p::GPCPolygon)`
 
-`gpcpoly2tristrip(p::GPCPolygon)`
+`gpc2tristrip(p::GPCPolygon)`
 
 Converts a [`GPCPolygon`](@ref) to a triangle strip.
 
@@ -319,7 +319,7 @@ end
 """
 `gpc_polygon_to_tristrip(p::GPCPolygon)`
 
-`gpcpoly2tristrip(p::GPCPolygon)`
+`gpc2tristrip(p::GPCPolygon)`
 
 Converts a [`GPCPolygon`](@ref) to a triangle strip.
 
@@ -331,7 +331,7 @@ In each vector of vertices, the 3 first vertices make up a triangle. Each additi
 vertex adds a new triangle to the strip. See function [`trianglevertices`](@ref) to see how each triangle is made up
 
 """
-gpcpoly2tristrip(p::GPCPolygon) = gpc_polygon_to_tristrip(p)
+gpc2tristrip(p::GPCPolygon) = gpc_polygon_to_tristrip(p)
 
 
 
@@ -462,7 +462,7 @@ using function [`pintri`](@ref).
 """
 function (∈)(p::Vertex, poly::GPCPolygon)
     # Convert the polygon to GPCTriStrip
-    strip = gpcpoly2tristrip(poly)
+    strip = gpc2tristrip(poly)
 
     isin = false
 
