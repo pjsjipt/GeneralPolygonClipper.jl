@@ -8,7 +8,7 @@ export Vertex, area, centroid
 export gpc_polygon_clip, gpc_polygon_to_tristrip, gpc_tristrip_clip
 export GPCPolygon, GPCTriStrip
 export union_strip, intersect_strip, diff_strip, xor_strip
-export gpcpoly2tristrip
+export gpcpoly2tristrip, pintri
 export GPCOperation, GPC_DIFF, GPC_INT, GPC_XOR, GPC_UNION
 
 
@@ -418,5 +418,65 @@ instead of another  [`GPCPolygon`](@ref).
 """
 xor_strip(p1::GPCPolygon, p2::GPCPolygon) = gpc_tristrip_clip(GPC_XOR, p1, p2)
 
+"""
+`pintri(p, p1, p2, p3)`
+
+Find whether point `p` is inside the triangle formed by
+vertices `p1`, `p2` and `p3`.
+"""
+function pintri(p, p1, p2, p3)
+    x = p.x-p1.x
+    y = p.y-p1.y
+
+    x1 = p2.x-p1.x
+    y1 = p2.y-p1.y
+
+    x2 = p3.x-p1.x
+    y2 = p3.y-p1.y
+
+    D = x1*y2 - x2*y1
+    a =  y2*x - x2*y
+    b = -y1*x + x1*y
+    if D >= 0
+        return a ≥ 0 && b ≥ 0 && (a+b) ≤ D
+    else
+        return a ≤ 0 && b ≤ 0 && (a+b) ≥ D
+    end
+    
+end
+
+
+import Base.(∈)
+"""
+`p ∈ poly`
+
+`p in poly`
+
+`in(p, poly)`
+
+Determine whether point `p` is inside polygon `poly`.
+
+This function will convert the polygon to triangle strips
+and check each triangle to see if the point is inside it
+using function [`pintri`](@ref).
+"""
+function (∈)(p::Vertex, poly::GPCPolygon)
+    # Convert the polygon to GPCTriStrip
+    strip = gpcpoly2tristrip(poly)
+
+    isin = false
+
+    for s in strip
+        ntri = length(s)
+        for i in 1:ntri
+            p1, p2, p3 = s[i]
+            if pintri(p, p1, p2, p3)
+                return true
+            end
+        end
+    end
+    
+    return false
+end
 
 end
