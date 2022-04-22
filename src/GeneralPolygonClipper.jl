@@ -18,6 +18,8 @@ struct Vertex
 end
 
 Vertex(v) = Vertex(v[1], v[2])
+import Base.getindex
+getindex(v::Vertex,i) = (i==1) ? v.x : v.y
 
 
 """
