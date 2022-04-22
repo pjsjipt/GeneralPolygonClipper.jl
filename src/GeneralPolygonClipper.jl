@@ -1,19 +1,24 @@
 module GeneralPolygonClipper
-import GeometryBasics: Point, Point2, Triangle, Polygon, AbstractPolygon
 
 
 @enum GPCOperation GPC_DIFF=0 GPC_INT GPC_XOR GPC_UNION
 
 
-export Point2, Polygon, Triangle, area
-export GPCPolygon, gpc_polygon_clip, gpc_tristrip_clip
+export Vertex, area, centroid
+export gpc_polygon_clip, gpc_polygon_to_tristrip, gpc_tristrip_clip
+export GPCPolygon, GPCTriStrip
 export union_strip, intersect_strip, diff_strip, xor_strip
-export gpcpoly2tristrip, tristrip2triangles, tristrip2polygons
-export gpcpoly2triangles, gpcpoly2polygons
-export gpc2poly
+export gpcpoly2tristrip
 export GPCOperation, GPC_DIFF, GPC_INT, GPC_XOR, GPC_UNION
 
-const Vertex = Point2{Float64}
+
+struct Vertex
+    x::Float64
+    y::Float64
+end
+
+Vertex(v) = Vertex(v[1], v[2])
+
 
 """
 `gpc_vertex_list(nv, vertex)`
@@ -52,7 +57,7 @@ end
 A GPC Polygon where each polygon is composed of 1 or more contours.
 Each contour is a vector of vertices and can be a hole or not.
 """
-struct GPCPolygon <: AbstractPolygon{2,Float64}
+struct GPCPolygon
     "Is the i-th contour a hole?"
     holes::Vector{Bool}
     "Vector of vertices of the i-th contour"
@@ -69,7 +74,6 @@ function GPCPolygon(x::AbstractVector, y::AbstractVector)
 end
 
 
-import GeometryBasics.area
 
 """
 `area(p::GPCPolygon)`
@@ -101,6 +105,55 @@ function area(p::GPCPolygon)
 end
 
 """
+`area(c::Vector{Vertex})`
+
+Compute the area of a closed contour of vertices.
+"""
+function area(c::Vector{Vertex})
+    A = c[end].x * c[1].y - c[1].x*c[end].y
+    nv = length(c)
+    for i in 2:nv
+        A = A + c[i-1].x * c[i].y - c[i].x * c[i-1].y
+    end
+
+    return A/2
+    
+end
+
+"""
+`triarea(u, v, w)`
+
+Calculates the area of the triangle defined by vertices `u`, `v`, `w`.
+"""
+triarea(u, v, w) = abs(u.x*v.y - v.x*u.y + v.x*w.y - w.x*v.y + w.x*u.y - u.x*w.y)/2
+
+"""
+`centroid(p::GPCPolygon)`
+
+Calculates the centroid of a [`GPCPolygon`](@ref).
+
+The function decomposes the polygon into triangle strips and uses
+that to compute the centroid.
+"""
+function centroid(p::GPCPolygon)
+    Cx = 0.0
+    Cy = 0.0
+    A = 0.0
+    strip = gpcpoly2tristrip(p)
+    for s in strip
+        for i in 1:length(s)
+            v = s[i]
+            Ai = triarea(v...)
+            Cx += Ai * (v[1].x + v[2].x + v[3].x)
+            Cy += Ai * (v[1].y + v[2].y + v[3].y)
+            A += Ai
+        end
+    end
+    
+    return Vertex(Cx/3A, Cy/3A)
+end
+
+"""
 `gpc_tristrip(ns, strip)`
 
 An `struct` to be passed to GPC C code library that stores a triangle strip.
@@ -113,7 +166,50 @@ struct gpc_tristrip
     strip::Ptr{gpc_vertex_list}
 end
 
+"""
+`GPCStrip(strip)`
 
+Stores triangle strips. Triangle the triangle strips follows the conventio
+used by the General Polygon Clipper C library. 
+"""
+struct GPCTriStrip
+    verts::Vector{Vertex}
+end
+
+import Base.length
+length(strip::GPCTriStrip) = length(strip.verts) - 2
+
+
+    
+"Number of triangles in a triangle strip"
+numtriangles(strip::AbstractVector{Vertex}) = length(strip.verts) - 2
+
+
+const idx_odd = (1,2,3)
+const idx_even = (3,2,1)
+
+
+"""
+`trianglevertices(ivert)`
+
+Return the index of `ivert`-th triangle in triangle strip.
+"""
+trianglevertices(ivert) = 
+    if ivert % 2 != 0
+        return (ivert-1) .+ idx_odd
+    else
+        return (ivert-1) .+ idx_even
+    end
+
+import Base.getindex
+
+function getindex(stri::GPCTriStrip, i::Integer)
+    idx = trianglevertices(i)
+    return stri.verts[idx[1]], stri.verts[idx[2]], stri.verts[idx[3]]
+end
+
+
+    
 
 """
 `gpc_polygon_clip(op, p1, p2)`
@@ -215,7 +311,7 @@ function gpc_polygon_to_tristrip(p::GPCPolygon)
     ccall(  (:gpc_free_tristrip, "/usr/local/lib/libgpc.so") , Cvoid,
             (Ptr{gpc_tristrip},), tri_out)
 
-    return strip
+    return [GPCTriStrip(v) for v in strip]
     
 end
 
@@ -236,112 +332,6 @@ vertex adds a new triangle to the strip. See function [`trianglevertices`](@ref)
 
 """
 gpcpoly2tristrip(p::GPCPolygon) = gpc_polygon_to_tristrip(p)
-
-"Number of triangles in a triangle strip"
-numtriangles(strip::AbstractVector{Vertex}) = length(strip.verts) - 2
-
-
-const idx_odd = (1,2,3)
-const idx_even = (3,2,1)
-
-
-"""
-`trianglevertices(ivert)`
-
-Return the index of `ivert`-th triangle in triangle strip.
-"""
-trianglevertices(ivert) = 
-    if ivert % 2 != 0
-        return (ivert-1) .+ idx_odd
-    else
-        return (ivert-1) .+ idx_even
-    end
-
-"""
-`tristrip2triangles(strip)`
-
-Convert each individual triangle strip to a vector of [`GeometryBasics::Triangle`](@ref) objects in [`GeometryBasics`](@ref) package.
-"""
-function tristrip2triangles(strip::Vector{P}) where {P <: Point}
-
-    nv = length(strip)
-    @assert nv >= 3
-    fun(idx) = Triangle(strip[idx[1]], strip[idx[2]], strip[idx[3]])
-    return [fun(trianglevertices(ivert)) for ivert in 1:nv-2]
-end
-
-"""
-`tristrip2polygons(strip)`
-
-Convert each individual triangle strip to a vector of [`GeometryBasics::Polygon`](@ref) objects in [`GeometryBasics`](@ref) package.
-"""
-function tristrip2polygons(strip::Vector{P}) where {P <: Point}
-    nv = length(strip)
-    @assert nv >= 3
-    fun(idx) = Polygon([strip[idx[1]], strip[idx[2]], strip[idx[3]]])
-    return [fun(trianglevertices(ivert)) for ivert in 1:nv-2]
-end
-
-    
-"""
-`gpcpoly2triangles(p)`
-
-Decompose a 
-"""
-function gpcpoly2triangles(p::GPCPolygon)
-    strips = gpcpoly2tristrip(p)
-
-    nstrips = length(strips)
-
-    if nstrips == 0
-        return Triangle{2,Float64}[]
-    elseif nstrips == 1
-        return tristrip2triangles(strips[1])
-    else
-        return reduce(append!, [tristrip2triangles(s) for s in strips])
-    end
-end
-
-function gpcpoly2polygons(p::GPCPolygon)
-    strips = gpcpoly2tristrip(p)
-
-    nstrips = length(strips)
-
-    if nstrips == 0
-        return typeof(Polygon([Vertex(0.0,0.0)]))
-    elseif nstrips == 1
-        return tristrip2polygons(strips[1])
-    else
-        return reduce(append!, [tristrip2triangles(s) for s in strips])
-    end
-end
-
-
-"""
-`gpc2poly(p::GPCPolygon)` 
-
-Converts a [`GPCPolygon`](@ref) object to a 
-[`GeometryBasics::Polygon`](@ref).
-
-The input polygon should have one and only one external contour!
-"""
-function gpc2poly(p::GPCPolygon)
-    # This will only work *if* we have a single external contour
-    if sum(!, p.holes) != 1
-        error("GPCPolygon should have only one external contour!")
-    end
-    
-    nc = length(p.contours)
-    cext = [p.contours[i] for i in 1:nc if !p.holes[i]]
-    cint = [p.contours[i] for i in 1:nc if p.holes[i]]
-
-    if length(cint) == 0
-        return Polygon(cext[1])
-    else
-        return Polygon(cext[1], cint)
-    end
-    
-end
 
 
 
@@ -391,7 +381,7 @@ function gpc_tristrip_clip(op::GPCOperation, p1::GPCPolygon, p2::GPCPolygon)
     ccall(  (:gpc_free_tristrip, "/usr/local/lib/libgpc.so") , Cvoid,
             (Ptr{gpc_tristrip},), tri_out)
 
-    return strip
+    return [GPCTriStrip(v) for v in strip]
 
 end
 
