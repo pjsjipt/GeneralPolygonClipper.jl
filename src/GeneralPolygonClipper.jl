@@ -369,7 +369,7 @@ function gpc_tristrip_clip(op::GPCOperation, p1::GPCPolygon, p2::GPCPolygon)
 
     tri_out = Ref(gpc_tristrip(0, 0))
     ccall( (:gpc_tristrip_clip, "/usr/local/lib/libgpc.so"), Cvoid,
-           (Cint, Ptr{gpc_polygon}, Ptr{gpc_polygon}, Ptr{gpc_polygon}),
+           (Cint, Ptr{gpc_polygon}, Ptr{gpc_polygon}, Ptr{gpc_tristrip}),
            Cint(op), Ref(gpc1), Ref(gpc2), tri_out)
 
     ns = tri_out[].num_strips
