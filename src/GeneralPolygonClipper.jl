@@ -401,7 +401,7 @@ union_strip(p1::GPCPolygon, p2::GPCPolygon) = gpc_tristrip_clip(GPC_UNION, p1, p
 Computes the intersection between two [`GPCPolygon`](@ref)s but returns triangle strips
  instead of another  [`GPCPolygon`](@ref).
 """
-intersec_strip(p1::GPCPolygon, p2::GPCPolygon) = gpc_tristrip_clip(GPC_INT, p1, p2)
+intersect_strip(p1::GPCPolygon, p2::GPCPolygon) = gpc_tristrip_clip(GPC_INT, p1, p2)
 
 
 """
